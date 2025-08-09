@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.hexo.agent">
+    <!-- Agent module manifest left empty. The orchestrator is invoked
+         programmatically from the app module. -->
+</manifest>

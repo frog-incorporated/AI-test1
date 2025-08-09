@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.hexo.core">
+    <!-- Core module manifest intentionally left mostly empty. Library modules
+         do not need to declare activities or services unless they expose
+         them to the application. -->
+</manifest>
