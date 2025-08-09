@@ -13,20 +13,38 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Detect project directory
+      - name: Locate Android project root (settings.gradle/.kts)
         id: detect
+        shell: bash
         run: |
-          if [ -f settings.gradle ] || [ -f settings.gradle.kts ]; then
-            echo "PROJECT_DIR=." >> $GITHUB_ENV
-          elif [ -d hexo ] && { [ -f hexo/settings.gradle ] || [ -f hexo/settings.gradle.kts ]; }; then
-            echo "PROJECT_DIR=hexo" >> $GITHUB_ENV
-          else
-            echo "Could not locate settings.gradle(.kts). Make sure you uploaded the Android project."
-            echo "Found files at repo root:"
+          set -euo pipefail
+          echo "Searching for settings.gradle(.kts) ..."
+          SETTINGS_FILE="$(git ls-files | grep -E '(^|/)(settings\.gradle(\.kts)?)$' | head -n1 || true)"
+          if [ -z "$SETTINGS_FILE" ]; then
+            echo "ERROR: Could not find settings.gradle or settings.gradle.kts in this repo."
+            echo "Repo contents:"
             ls -la
             exit 1
           fi
-          echo "Will build from: $(cat $GITHUB_ENV | grep PROJECT_DIR | cut -d= -f2)"
+          PROJECT_DIR="$(dirname "$SETTINGS_FILE")"
+          if [ "$PROJECT_DIR" = "." ]; then
+            PROJECT_DIR="$GITHUB_WORKSPACE"
+          else
+            PROJECT_DIR="$GITHUB_WORKSPACE/$PROJECT_DIR"
+          fi
+          echo "PROJECT_DIR=$PROJECT_DIR" >> $GITHUB_ENV
+          echo "Found settings file at: $SETTINGS_FILE"
+          echo "Project dir set to: $PROJECT_DIR"
+
+      - name: Show project structure
+        shell: bash
+        run: |
+          echo "== Top-level =="
+          ls -la
+          echo "== Project dir (${PROJECT_DIR}) =="
+          ls -la "${PROJECT_DIR}" || true
+          echo "== Modules in project dir =="
+          ls -la "${PROJECT_DIR}/app" || true
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -40,7 +58,9 @@ jobs:
           accept-android-sdk-licenses: true
 
       - name: Install required Android packages
+        shell: bash
         run: |
+          set -euo pipefail
           SDKMANAGER="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
           echo y | "$SDKMANAGER" --licenses
           "$SDKMANAGER" "platform-tools" "platforms;android-34" "build-tools;34.0.0"
@@ -50,15 +70,32 @@ jobs:
         with:
           gradle-version: 8.7
 
+      - name: Gradle projects (diagnostic)
+        working-directory: ${{ env.PROJECT_DIR }}
+        shell: bash
+        run: |
+          if [ -x "./gradlew" ]; then
+            ./gradlew projects --no-daemon --stacktrace || true
+          else
+            gradle projects --no-daemon --stacktrace || true
+          fi
+
       - name: Make debug APK
         working-directory: ${{ env.PROJECT_DIR }}
-        run: gradle :app:assembleDebug
+        shell: bash
+        run: |
+          if [ -x "./gradlew" ]; then
+            ./gradlew :app:assembleDebug --no-daemon --stacktrace
+          else
+            gradle :app:assembleDebug --no-daemon --stacktrace
+          fi
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: hexo-debug-apk
           path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/app-debug.apk
+
 
 
 
